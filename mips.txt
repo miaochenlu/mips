@@ -1,0 +1,7 @@
+j start#asdf
+add $zero, $zero, $zero#
+     
+start:   
+
+nor $zero, $zero, $zero
+
