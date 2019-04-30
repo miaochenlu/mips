@@ -9,7 +9,7 @@
 using namespace std;
 string reg[32] = {"$zero", "$at", "$v0", "$v1", "$a0", "$a1", "$a2", "$a3", "$t0", "$t1", "$t2",
                   "$t3", "$t4", "$t5", "$t6", "$t7", "$s0", "$s1", "$s2", "$s3", "$s4", "$s5", 
-                  "$s6", "$s7", "$t8", "$t9", "$t0", "$t1", "$gp", "sp", "fp", "ra"};
+                  "$s6", "$s7", "$t8", "$t9", "$k0", "$k1", "$gp", "$sp", "$fp", "$ra"};
 
 void tolower(char str[]) {
     int i = 0;
@@ -22,6 +22,18 @@ void tolower(char str[]) {
 
 typedef map<string, int> Map;
 Map jump_address;
+
+int IsInteger(string s) {
+    int res = 1;
+    int j = 0;
+    if(s[0] == '0' && s[1] == 'x') j = 2;
+    for(int i = j; i < s.size(); i++) {
+        if(s[i] < '0' || s[i] > '9')
+            res = 0;
+    }
+    return res;
+}
+
 void FirstScan(ifstream &fin, ofstream &fout) {
     int i = 0, j = 0, k = 0, colon = 0;
     string address;
@@ -146,7 +158,39 @@ string string216int(char imm[]) {
     if(imm[0] == '0' && imm[1] == 'x') {
         i = 2;
         while(imm[i] != 0) {
-            result = (imm[i] - '0') + result * 16; 
+            if(imm[i] >= 'a' && imm[i] <= 'f')
+                result = (imm[i] - 'a' + 10) + result * 16;
+            else if(imm[i] >= '0' && imm[i] <= '9') 
+                result = (imm[i] - '0') + result * 16; 
+            i++;
+        }
+            
+    }
+    else if(imm[0] == '0' && imm[1] == 'b') {
+        i = 2;
+        while(imm[i] != 0) {
+            result = (imm[i] - '0') + result * 2; 
+            i++;
+        }
+    }
+    else
+        result = atoi(imm);
+    bitset<16> tmp(result);
+    cout << tmp.to_string() << endl;
+    return tmp.to_string();
+} 
+
+string string25int(char imm[]) {
+    int i = 0;
+    int result = 0;
+    //cout << "yers" << endl;
+    if(imm[0] == '0' && imm[1] == 'x') {
+        i = 2;
+        while(imm[i] != 0) {
+            if(imm[i] >= 'a' && imm[i] <= 'f')
+                result = (imm[i] = 'a' + 10) + result * 16;
+            else if(imm[i] >= '0' && imm[i] <= '9') 
+                result = (imm[i] - '0') + result * 16; 
             i++;
         }
     }
@@ -159,7 +203,7 @@ string string216int(char imm[]) {
     }
     else
         result = atoi(imm);
-    bitset<16> tmp(result);
+    bitset<5> tmp(result);
     return tmp.to_string();
 } 
 string i_instruction(char buffer[]) {
@@ -318,6 +362,58 @@ string lw_sw(char buffer[]) {
    //cout << result << endl;
     return result;
 }
+
+string lui_instruction(char buffer[]) {
+    string result;
+    int i = 0;
+    char oper[20];
+    char rs_tmp[20];
+    char rt_tmp[20];
+    char imm_tmp[30];
+    string op;
+    string rs , rt, imm;
+    int rs_num = 0, rt_num = 0;
+    //read op
+    int j = 0;
+    while(buffer[i] != ' ')
+        oper[j++] = buffer[i++];
+    oper[j] = 0;
+    op = oper;
+
+    //read rt
+    j = 0;
+    while(buffer[i] == ' ' || buffer[i] == ',') i++;
+    while(buffer[i] != ',')
+        rt_tmp[j++] = buffer[i++];
+    rt_tmp[j] = 0;
+    rt = rt_tmp;
+    
+    //read imm
+    j = 0; 
+    while(buffer[i] == ' ' || buffer[i] == ',') i++;
+    while(buffer[i] != '\0' && buffer[i] != ' ' && buffer[i] != '#' && buffer[i] != ';') 
+        imm_tmp[j++] = buffer[i++];
+    imm_tmp[j] = 0;
+    j = 0; 
+
+    //read rs
+    rs = "00000";
+    
+    for(int k = 0; k < 32; k++) {
+        if(rt == reg[k]) {
+            rt_num = k;
+            cout << reg[k] << endl;
+        }
+    }
+    cout << "rt " << rt_num << endl;
+    // cout << "rs " << rs << " rt " << rt << endl;
+    // cout << "rs_num " << rs_num << endl;
+    imm = string216int(imm_tmp);
+    if(op == "lui") result += "001111";
+    result += rs + int25Binstring(rt_num) + imm;
+   //cout << result << endl;
+    return result;
+}
 string r_instruction(char buffer[]) {
     string result;
     int i = 0;
@@ -327,7 +423,7 @@ string r_instruction(char buffer[]) {
     char rd_tmp[20];
     string op;
     string rs , rt, rd;
-    string shamt;
+    string shamt = "00000";
     string func;
     int rs_num = 0, rt_num = 0, rd_num = 0;
     //read op
@@ -358,23 +454,35 @@ string r_instruction(char buffer[]) {
     rt = rt_tmp;
 
     for(int k = 0; k < 32; k++) {
-        if(rd == reg[k]) 
+        int flag[3] = {0};
+        if(rd == reg[k]) {
             rd_num = k;
-        if(rs == reg[k])
+            flag[0] = 1;
+        }
+        if(rs == reg[k]) {
             rs_num = k;
-        if(rt == reg[k])
+            flag[1] = 1;
+        }
+        if(rt == reg[k]) {
             rt_num = k;
+            flag[2] = 1;
+        }
+        else if(IsInteger(rt)) {
+            shamt = string25int(rt_tmp);
+            flag[2] = 1;
+        }
     }
     //cout << rs << rd << rt << endl;
     result += "000000";
     result += int25Binstring(rs_num) + int25Binstring(rt_num) + int25Binstring(rd_num);
-    shamt   = "00000";
     if(op == "add")      { func = "100000";}
     else if(op == "sub") { func = "100010";}
     else if(op == "nor") { func = "100111";}
     else if(op == "slt") { func = "101010";}
     else if(op == "and") { func = "100100";}
     else if(op == "or")  { func = "100101";}
+    else if(op == "xor") { func = "100110";}
+    else if(op == "srl") { func = "000010";}
     result += shamt + func;
     return result;
 }
@@ -398,7 +506,7 @@ string jr_instruction(char buffer[]) {
 
     //read rs
     j = 0; while(buffer[i] == ' ' || buffer[i] == ',') i++;
-    while(buffer[i] != ',')  
+    while(buffer[i] != '\0' && buffer[i] != ' ' && buffer[i] != '#' && buffer[i] != ';')
         rs_tmp[j++] = buffer[i++];
     rs_tmp[j] = 0;
     rs = rs_tmp;
@@ -441,15 +549,21 @@ int main() {
             }
             oper[i] = 0;
 			op = oper;
+            cout << op << endl;
             if (op == "j" || op == "jal")
                 res.push_back(j_instruction(buffer));
-            else if (op == "jr") 
+            else if (op == "jr") {
                 res.push_back(jr_instruction(buffer));
-            else if (op == "addi" || op == "ori") 
+            }
+            else if (op == "addi" || op == "andi" || op == "ori" || op == "xori" 
+                         || op == "slti") 
                 res.push_back(i_instruction(buffer));
+            else if (op == "lui") 
+                res.push_back(lui_instruction(buffer));
             else if(op == "beq" || op == "bne") 
                 res.push_back(bounce_instruction(buffer, line));
-            else if (op == "add" || op == "sub" || op == "and" || op == "or" || op == "slt" || op == "nor")
+            else if (op == "add" || op == "sub" || op == "and" || op == "or" || op == "sltu" 
+                        || op == "xor" || op == "slt" || op == "nor" || op == "srl")
                 res.push_back(r_instruction(buffer));
             else if (op == "sw" || op == "lw") 
                 res.push_back(lw_sw(buffer));
